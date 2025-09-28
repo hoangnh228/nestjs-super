@@ -51,17 +51,6 @@ export class AuthService {
         ])
       }
 
-      const { error } = await this.emailService.sendOtp({ email: body.email, code: verificationCode.code })
-
-      if (error) {
-        throw new UnprocessableEntityException([
-          {
-            message: 'Failed to send OTP email',
-            path: 'code',
-          },
-        ])
-      }
-
       return await this.authRepository.createUser({
         email: body.email,
         name: body.name,
@@ -97,6 +86,17 @@ export class AuthService {
       code: otp,
       expiresAt: addMilliseconds(new Date(), ms(env.OTP_EXPIRES_IN)),
     })
+
+    const { error } = await this.emailService.sendOtp({ email: body.email, code: verificationCode.code })
+
+    if (error) {
+      throw new UnprocessableEntityException([
+        {
+          message: 'Failed to send OTP email',
+          path: 'code',
+        },
+      ])
+    }
 
     return verificationCode
   }
