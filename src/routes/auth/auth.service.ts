@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common'
 import { AuthRepository } from 'src/routes/auth/auth.repo'
 import {
+  Disable2FABodyType,
   ForgotPasswordBodyType,
   LoginBodyType,
   LogoutBodyType,
@@ -341,5 +342,37 @@ export class AuthService {
 
     // 4. return totp secret
     return { secret, uri }
+  }
+
+  async disable2FA(data: Disable2FABodyType & { userId: number }) {
+    const { userId, totpCode, code } = data
+
+    const user = await this.sharedUserRepository.findUnique({ id: userId })
+    if (!user) {
+      throw new UnprocessableEntityException([{ message: 'User not found', path: 'userId' }])
+    }
+
+    if (!user.totpSecret) {
+      throw new UnprocessableEntityException([{ message: '2FA is not setup', path: 'userId' }])
+    }
+
+    if (totpCode) {
+      const isValid = this.twoFactorAuthenticationService.verifyTOTP({
+        email: user.email,
+        token: totpCode,
+        secret: user.totpSecret,
+      })
+
+      if (!isValid) {
+        throw new UnprocessableEntityException([{ message: '2FA is invalid', path: 'totpCode' }])
+      }
+    } else if (code) {
+      await this.verifyVerificationCode(user.email, code, TypeOfVerificationCode.DISABLE_2FA)
+    }
+
+    // 5. update user totp secret
+    await this.authRepository.updateUser({ id: userId }, { totpSecret: null })
+
+    return { message: '2FA disabled successfully' }
   }
 }
