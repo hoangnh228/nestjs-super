@@ -1,10 +1,4 @@
-import {
-  ConflictException,
-  HttpException,
-  Injectable,
-  UnauthorizedException,
-  UnprocessableEntityException,
-} from '@nestjs/common'
+import { HttpException, Injectable, UnauthorizedException, UnprocessableEntityException } from '@nestjs/common'
 import { AuthRepository } from 'src/routes/auth/auth.repo'
 import {
   Disable2FABodyType,
@@ -27,6 +21,18 @@ import { TypeOfVerificationCode, TypeOfVerificationCodeType } from 'src/shared/c
 import { EmailService } from 'src/shared/services/email.service'
 import { AccessTokenPayloadCreate } from 'src/shared/types/jwt.type'
 import { TwoFactorAuthenticationService } from 'src/shared/services/2fa.service'
+import {
+  EmailAlreadyExistsException,
+  EmailNotFoundException,
+  ExpiredOtpException,
+  FailedToSendOtpEmailException,
+  InvalidOtpException,
+  InvalidPasswordException,
+  TwoFactorInvalidException,
+  TwoFactorNotSetupException,
+  TwoFactorOrEmailOtpRequiredException,
+  UserNotFoundException,
+} from 'src/routes/auth/error.model'
 
 @Injectable()
 export class AuthService {
@@ -46,21 +52,11 @@ export class AuthService {
     })
 
     if (!verificationCode) {
-      throw new UnprocessableEntityException([
-        {
-          message: 'Verification code is invalid',
-          path: 'code',
-        },
-      ])
+      throw InvalidOtpException
     }
 
     if (verificationCode.expiresAt < new Date()) {
-      throw new UnprocessableEntityException([
-        {
-          message: 'Verification code is expired',
-          path: 'code',
-        },
-      ])
+      throw ExpiredOtpException
     }
 
     return verificationCode
@@ -87,7 +83,7 @@ export class AuthService {
       return user
     } catch (error) {
       if (isUniqueConstraintPrismaError(error)) {
-        throw new ConflictException('Email already exists')
+        throw EmailAlreadyExistsException
       }
       throw error
     }
@@ -97,21 +93,11 @@ export class AuthService {
     // 1. check if user exists
     const user = await this.sharedUserRepository.findUnique({ email: body.email })
     if (user && body.type === TypeOfVerificationCode.REGISTER) {
-      throw new UnprocessableEntityException([
-        {
-          message: 'Email already exists',
-          path: 'email',
-        },
-      ])
+      throw EmailAlreadyExistsException
     }
 
     if (!user && body.type === TypeOfVerificationCode.FORGOT_PASSWORD) {
-      throw new UnprocessableEntityException([
-        {
-          message: 'Email not found',
-          path: 'email',
-        },
-      ])
+      throw EmailNotFoundException
     }
 
     // 2. generate otp and create verification code
@@ -126,12 +112,7 @@ export class AuthService {
     const { error } = await this.emailService.sendOtp({ email: body.email, code })
 
     if (error) {
-      throw new UnprocessableEntityException([
-        {
-          message: 'Failed to send OTP email',
-          path: 'code',
-        },
-      ])
+      throw FailedToSendOtpEmailException
     }
 
     return { message: 'OTP sent successfully' }
@@ -143,32 +124,17 @@ export class AuthService {
     })
 
     if (!user) {
-      throw new UnprocessableEntityException([
-        {
-          message: 'User not found',
-          path: 'email',
-        },
-      ])
+      throw UserNotFoundException
     }
 
     const isPasswordValid = await this.hashingService.compare(body.password, user.password)
     if (!isPasswordValid) {
-      throw new UnprocessableEntityException([
-        {
-          message: 'Invalid password',
-          path: 'password',
-        },
-      ])
+      throw InvalidPasswordException
     }
 
     if (user.totpSecret) {
       if (!body.totpCode && !body.code) {
-        throw new UnprocessableEntityException([
-          {
-            message: '2FA or email OTP is required',
-            path: 'code',
-          },
-        ])
+        throw TwoFactorOrEmailOtpRequiredException
       }
 
       if (body.totpCode) {
@@ -179,12 +145,7 @@ export class AuthService {
         })
 
         if (!isValid) {
-          throw new UnprocessableEntityException([
-            {
-              message: '2FA is invalid',
-              path: 'code',
-            },
-          ])
+          throw TwoFactorInvalidException
         }
       } else if (body.code) {
         await this.verifyVerificationCode(user.email, body.code, TypeOfVerificationCode.LOGIN)
@@ -290,12 +251,7 @@ export class AuthService {
     // 1. check email exists
     const user = await this.sharedUserRepository.findUnique({ email })
     if (!user) {
-      throw new UnprocessableEntityException([
-        {
-          message: 'Email not found',
-          path: 'email',
-        },
-      ])
+      throw EmailNotFoundException
     }
 
     // 2. check otp
@@ -349,11 +305,11 @@ export class AuthService {
 
     const user = await this.sharedUserRepository.findUnique({ id: userId })
     if (!user) {
-      throw new UnprocessableEntityException([{ message: 'User not found', path: 'userId' }])
+      throw UserNotFoundException
     }
 
     if (!user.totpSecret) {
-      throw new UnprocessableEntityException([{ message: '2FA is not setup', path: 'userId' }])
+      throw TwoFactorNotSetupException
     }
 
     if (totpCode) {
@@ -364,7 +320,7 @@ export class AuthService {
       })
 
       if (!isValid) {
-        throw new UnprocessableEntityException([{ message: '2FA is invalid', path: 'totpCode' }])
+        throw TwoFactorInvalidException
       }
     } else if (code) {
       await this.verifyVerificationCode(user.email, code, TypeOfVerificationCode.DISABLE_2FA)
