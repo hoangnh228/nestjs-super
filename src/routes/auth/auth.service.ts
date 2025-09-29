@@ -160,6 +160,36 @@ export class AuthService {
       ])
     }
 
+    if (user.totpSecret) {
+      if (!body.totpCode && !body.code) {
+        throw new UnprocessableEntityException([
+          {
+            message: '2FA or email OTP is required',
+            path: 'code',
+          },
+        ])
+      }
+
+      if (body.totpCode) {
+        const isValid = this.twoFactorAuthenticationService.verifyTOTP({
+          email: user.email,
+          token: body.totpCode,
+          secret: user.totpSecret,
+        })
+
+        if (!isValid) {
+          throw new UnprocessableEntityException([
+            {
+              message: '2FA is invalid',
+              path: 'code',
+            },
+          ])
+        }
+      } else if (body.code) {
+        await this.verifyVerificationCode(user.email, body.code, TypeOfVerificationCode.LOGIN)
+      }
+    }
+
     const device = await this.authRepository.createDevice({
       userId: user.id,
       userAgent: body.userAgent,

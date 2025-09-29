@@ -56,6 +56,22 @@ export const LoginBodySchema = UserSchema.pick({
     code: z.string().length(6).optional(), // For email OTP
   })
   .strict()
+  .superRefine(({ totpCode, code }, ctx) => {
+    if (totpCode !== undefined && code !== undefined) {
+      const message = 'Only one of totpCode or code must be provided'
+      ctx.addIssue({
+        code: 'custom',
+        message,
+        path: ['totpCode'],
+      })
+
+      ctx.addIssue({
+        code: 'custom',
+        message,
+        path: ['code'],
+      })
+    }
+  })
 
 export const LoginResSchema = z.object({
   accessToken: z.string(),
