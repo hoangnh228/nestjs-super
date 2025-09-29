@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common'
 import { AuthRepository } from 'src/routes/auth/auth.repo'
 import {
+  ForgotPasswordBodyType,
   LoginBodyType,
   LogoutBodyType,
   RefreshTokenBodyType,
@@ -21,7 +22,7 @@ import { SharedUserRepository } from 'src/shared/repositories/shared-user.repo'
 import { addMilliseconds } from 'date-fns'
 import ms from 'ms'
 import env from 'src/shared/config'
-import { TypeOfVerificationCode } from 'src/shared/constants/auth.constant'
+import { TypeOfVerificationCode, TypeOfVerificationCodeType } from 'src/shared/constants/auth.constant'
 import { EmailService } from 'src/shared/services/email.service'
 import { AccessTokenPayloadCreate } from 'src/shared/types/jwt.type'
 
@@ -36,41 +37,55 @@ export class AuthService {
     private readonly emailService: EmailService,
   ) {}
 
+  async verifyVerificationCode(email: string, code: string, type: TypeOfVerificationCodeType) {
+    const verificationCode = await this.authRepository.findVerificationCode({
+      email,
+      code,
+      type,
+    })
+
+    if (!verificationCode) {
+      throw new UnprocessableEntityException([
+        {
+          message: 'Verification code is invalid',
+          path: 'code',
+        },
+      ])
+    }
+
+    if (verificationCode.expiresAt < new Date()) {
+      throw new UnprocessableEntityException([
+        {
+          message: 'Verification code is expired',
+          path: 'code',
+        },
+      ])
+    }
+
+    return verificationCode
+  }
+
   async register(body: RegisterBodyType) {
     try {
       const clientRoleId = await this.rolesService.getClientRoleId()
       const hashedPassword = await this.hashingService.hash(body.password)
-      const verificationCode = await this.authRepository.findVerificationCode({
-        email: body.email,
-        code: body.code,
-        type: TypeOfVerificationCode.REGISTER,
-      })
+      await this.verifyVerificationCode(body.email, body.code, TypeOfVerificationCode.REGISTER)
+      const [user] = await Promise.all([
+        this.authRepository.createUser({
+          email: body.email,
+          name: body.name,
+          password: hashedPassword,
+          phoneNumber: body.phoneNumber,
+          roleId: clientRoleId,
+        }),
+        this.authRepository.deleteVerificationCode({
+          email: body.email,
+          code: body.code,
+          type: TypeOfVerificationCode.REGISTER,
+        }),
+      ])
 
-      if (!verificationCode) {
-        throw new UnprocessableEntityException([
-          {
-            message: 'Verification code is invalid',
-            path: 'code',
-          },
-        ])
-      }
-
-      if (verificationCode.expiresAt < new Date()) {
-        throw new UnprocessableEntityException([
-          {
-            message: 'Verification code is expired',
-            path: 'code',
-          },
-        ])
-      }
-
-      return await this.authRepository.createUser({
-        email: body.email,
-        name: body.name,
-        password: hashedPassword,
-        phoneNumber: body.phoneNumber,
-        roleId: clientRoleId,
-      })
+      return user
     } catch (error) {
       if (isUniqueConstraintPrismaError(error)) {
         throw new ConflictException('Email already exists')
@@ -82,7 +97,7 @@ export class AuthService {
   async sendOtp(body: SendOtpBodyType) {
     // 1. check if user exists
     const user = await this.sharedUserRepository.findUnique({ email: body.email })
-    if (user) {
+    if (user && body.type === TypeOfVerificationCode.REGISTER) {
       throw new UnprocessableEntityException([
         {
           message: 'Email already exists',
@@ -91,16 +106,25 @@ export class AuthService {
       ])
     }
 
+    if (!user && body.type === TypeOfVerificationCode.FORGOT_PASSWORD) {
+      throw new UnprocessableEntityException([
+        {
+          message: 'Email not found',
+          path: 'email',
+        },
+      ])
+    }
+
     // 2. generate otp and create verification code
-    const otp = generateOtp()
-    const verificationCode = await this.authRepository.createVerificationCode({
+    const code = generateOtp()
+    await this.authRepository.createVerificationCode({
       email: body.email,
       type: body.type,
-      code: otp,
+      code: code,
       expiresAt: addMilliseconds(new Date(), ms(env.OTP_EXPIRES_IN as ms.StringValue)),
     })
 
-    const { error } = await this.emailService.sendOtp({ email: body.email, code: verificationCode.code })
+    const { error } = await this.emailService.sendOtp({ email: body.email, code })
 
     if (error) {
       throw new UnprocessableEntityException([
@@ -229,5 +253,41 @@ export class AuthService {
       }
       throw new UnauthorizedException()
     }
+  }
+
+  async forgotPassword(body: ForgotPasswordBodyType) {
+    const { email, code, newPassword } = body
+
+    // 1. check email exists
+    const user = await this.sharedUserRepository.findUnique({ email })
+    if (!user) {
+      throw new UnprocessableEntityException([
+        {
+          message: 'Email not found',
+          path: 'email',
+        },
+      ])
+    }
+
+    // 2. check otp
+    await this.verifyVerificationCode(email, code, TypeOfVerificationCode.FORGOT_PASSWORD)
+
+    // 3. update password and delete otp
+    const hashedPassword = await this.hashingService.hash(newPassword)
+    await Promise.all([
+      this.authRepository.updateUser(
+        { id: user.id },
+        {
+          password: hashedPassword,
+        },
+      ),
+      this.authRepository.deleteVerificationCode({
+        email,
+        code,
+        type: TypeOfVerificationCode.FORGOT_PASSWORD,
+      }),
+    ])
+
+    return { message: 'Password updated successfully' }
   }
 }

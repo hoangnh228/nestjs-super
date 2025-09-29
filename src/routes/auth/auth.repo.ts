@@ -1,11 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import {
-  DeviceType,
-  RefreshTokenType,
-  RegisterBodyType,
-  RoleType,
-  VerificationCodeType,
-} from 'src/routes/auth/auth.model'
+import { DeviceType, RefreshTokenType, RoleType, VerificationCodeType } from 'src/routes/auth/auth.model'
 import { TypeOfVerificationCodeType } from 'src/shared/constants/auth.constant'
 import { UserType } from 'src/shared/models/shared-user.model'
 import { PrismaService } from 'src/shared/services/prisma.service'
@@ -15,11 +9,20 @@ export class AuthRepository {
   constructor(private readonly prismaService: PrismaService) {}
 
   async createUser(
-    user: Omit<RegisterBodyType, 'confirmPassword' | 'code'> & Pick<UserType, 'roleId'>,
+    user: Pick<UserType, 'roleId' | 'email' | 'name' | 'password' | 'phoneNumber'>,
   ): Promise<Omit<UserType, 'password' | 'totpSecret'>> {
     return this.prismaService.user.create({
       data: user,
       omit: { password: true, totpSecret: true },
+    })
+  }
+
+  async createUserIncludeRole(
+    user: Pick<UserType, 'roleId' | 'email' | 'name' | 'password' | 'phoneNumber' | 'avatar'>,
+  ): Promise<UserType & { role: RoleType }> {
+    return this.prismaService.user.create({
+      data: user,
+      include: { role: true },
     })
   }
 
@@ -34,10 +37,10 @@ export class AuthRepository {
   }
 
   async findVerificationCode(
-    payload: { email: string } | { id: number } | { email: string; code: string; type: TypeOfVerificationCodeType },
+    where: { email: string } | { id: number } | { email: string; code: string; type: TypeOfVerificationCodeType },
   ): Promise<VerificationCodeType | null> {
     return this.prismaService.verificationCode.findFirst({
-      where: payload,
+      where,
     })
   }
 
@@ -51,18 +54,18 @@ export class AuthRepository {
     return this.prismaService.device.create({ data })
   }
 
-  findUserWithRole(payload: { email: string } | { id: number }): Promise<(UserType & { role: RoleType }) | null> {
+  findUserWithRole(where: { email: string } | { id: number }): Promise<(UserType & { role: RoleType }) | null> {
     return this.prismaService.user.findUnique({
-      where: payload,
+      where,
       include: { role: true },
     })
   }
 
-  findRefreshTokenWithRole(payload: {
+  findRefreshTokenWithRole(where: {
     token: string
   }): Promise<(RefreshTokenType & { user: UserType & { role: RoleType } }) | null> {
     return this.prismaService.refreshToken.findUnique({
-      where: payload,
+      where,
       include: { user: { include: { role: true } } },
     })
   }
@@ -78,5 +81,38 @@ export class AuthRepository {
     return this.prismaService.refreshToken.delete({
       where: { token: payload.token },
     })
+  }
+
+  updateUser(
+    where: { id: number } | { email: string },
+    data: Partial<Omit<UserType, 'id' | 'createdAt' | 'updatedAt' | 'deletedAt'>>,
+  ): Promise<UserType> {
+    return this.prismaService.user.update({
+      where,
+      data,
+    })
+  }
+
+  deleteVerificationCode(
+    where:
+      | { id: number }
+      | { email: string; type: TypeOfVerificationCodeType }
+      | {
+          email: string
+          code: string
+          type: TypeOfVerificationCodeType
+        },
+  ): Promise<VerificationCodeType> {
+    if ('id' in where) {
+      return this.prismaService.verificationCode.delete({ where })
+    }
+
+    if ('type' in where && 'email' in where) {
+      return this.prismaService.verificationCode.delete({
+        where: { email_type: { email: where.email, type: where.type } },
+      })
+    }
+
+    throw new Error('Ambiguous deleteVerificationCode: provide id or (email and type)')
   }
 }

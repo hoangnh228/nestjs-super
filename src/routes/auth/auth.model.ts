@@ -97,6 +97,33 @@ export const RoleSchema = z.object({
 
 export const LogoutBodySchema = RefreshTokenBodySchema
 
+export const GoogleAuthStateSchema = DeviceSchema.pick({
+  userAgent: true,
+  ip: true,
+})
+
+export const GetAuthorizeUrlResSchema = z.object({
+  url: z.string(),
+})
+
+export const ForgotPasswordBodySchema = z
+  .object({
+    email: z.string().email(),
+    code: z.string().length(6),
+    newPassword: z.string().min(6).max(50),
+    confirmNewPassword: z.string().min(6).max(50),
+  })
+  .strict()
+  .superRefine(({ newPassword, confirmNewPassword }, ctx) => {
+    if (newPassword !== confirmNewPassword) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'New password and confirm new password do not match',
+        path: ['confirmNewPassword'],
+      })
+    }
+  })
+
 export type RoleType = z.infer<typeof RoleSchema>
 export type DeviceType = z.infer<typeof DeviceSchema>
 export type SendOtpBodyType = z.infer<typeof SendOtpBodySchema>
@@ -109,3 +136,6 @@ export type RefreshTokenType = z.infer<typeof RefreshTokenSchema>
 export type RefreshTokenBodyType = z.infer<typeof RefreshTokenBodySchema>
 export type RefreshTokenResType = LoginResType
 export type LogoutBodyType = RefreshTokenBodyType
+export type GoogleAuthStateType = z.infer<typeof GoogleAuthStateSchema>
+export type GetAuthorizeUrlResType = z.infer<typeof GetAuthorizeUrlResSchema>
+export type ForgotPasswordBodyType = z.infer<typeof ForgotPasswordBodySchema>
