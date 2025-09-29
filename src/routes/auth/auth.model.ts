@@ -50,7 +50,12 @@ export const SendOtpBodySchema = VerificationCodeSchema.pick({
 export const LoginBodySchema = UserSchema.pick({
   email: true,
   password: true,
-}).strict()
+})
+  .extend({
+    totpCode: z.string().length(6).optional(), // For 2FA
+    code: z.string().length(6).optional(), // For email OTP
+  })
+  .strict()
 
 export const LoginResSchema = z.object({
   accessToken: z.string(),
@@ -124,6 +129,34 @@ export const ForgotPasswordBodySchema = z
     }
   })
 
+export const Disable2FABodySchema = z
+  .object({
+    totpCode: z.string().length(6).optional(),
+    code: z.string().length(6).optional(),
+  })
+  .strict()
+  .superRefine(({ totpCode, code }, ctx) => {
+    const message = 'Only one of totpCode or code must be provided'
+    if ((totpCode !== undefined) === (code !== undefined)) {
+      ctx.addIssue({
+        code: 'custom',
+        message,
+        path: ['totpCode'],
+      })
+
+      ctx.addIssue({
+        code: 'custom',
+        message,
+        path: ['code'],
+      })
+    }
+  })
+
+export const Setup2FAResSchema = z.object({
+  secret: z.string(),
+  uri: z.string(),
+})
+
 export type RoleType = z.infer<typeof RoleSchema>
 export type DeviceType = z.infer<typeof DeviceSchema>
 export type SendOtpBodyType = z.infer<typeof SendOtpBodySchema>
@@ -139,3 +172,5 @@ export type LogoutBodyType = RefreshTokenBodyType
 export type GoogleAuthStateType = z.infer<typeof GoogleAuthStateSchema>
 export type GetAuthorizeUrlResType = z.infer<typeof GetAuthorizeUrlResSchema>
 export type ForgotPasswordBodyType = z.infer<typeof ForgotPasswordBodySchema>
+export type Disable2FABodyType = z.infer<typeof Disable2FABodySchema>
+export type Setup2FAResType = z.infer<typeof Setup2FAResSchema>

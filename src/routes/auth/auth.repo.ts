@@ -30,16 +30,16 @@ export class AuthRepository {
     payload: Pick<VerificationCodeType, 'email' | 'type' | 'code' | 'expiresAt'>,
   ): Promise<VerificationCodeType> {
     return this.prismaService.verificationCode.upsert({
-      where: { email_type: { email: payload.email, type: payload.type } },
+      where: { email_code_type: { email: payload.email, code: payload.code, type: payload.type } },
       create: payload,
       update: { code: payload.code, expiresAt: payload.expiresAt },
     })
   }
 
   async findVerificationCode(
-    where: { email: string } | { id: number } | { email: string; code: string; type: TypeOfVerificationCodeType },
+    where: { id: number } | { email_code_type: { email: string; code: string; type: TypeOfVerificationCodeType } },
   ): Promise<VerificationCodeType | null> {
-    return this.prismaService.verificationCode.findFirst({
+    return this.prismaService.verificationCode.findUnique({
       where,
     })
   }
@@ -94,25 +94,10 @@ export class AuthRepository {
   }
 
   deleteVerificationCode(
-    where:
-      | { id: number }
-      | { email: string; type: TypeOfVerificationCodeType }
-      | {
-          email: string
-          code: string
-          type: TypeOfVerificationCodeType
-        },
+    where: { id: number } | { email_code_type: { email: string; code: string; type: TypeOfVerificationCodeType } },
   ): Promise<VerificationCodeType> {
-    if ('id' in where) {
-      return this.prismaService.verificationCode.delete({ where })
-    }
-
-    if ('type' in where && 'email' in where) {
-      return this.prismaService.verificationCode.delete({
-        where: { email_type: { email: where.email, type: where.type } },
-      })
-    }
-
-    throw new Error('Ambiguous deleteVerificationCode: provide id or (email and type)')
+    return this.prismaService.verificationCode.delete({
+      where,
+    })
   }
 }

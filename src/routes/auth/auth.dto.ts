@@ -10,6 +10,8 @@ import {
   SendOtpBodySchema,
   GetAuthorizeUrlResSchema,
   ForgotPasswordBodySchema,
+  Setup2FAResSchema,
+  Disable2FABodySchema,
 } from 'src/routes/auth/auth.model'
 
 export class RegisterBodyDto extends createZodDto(RegisterBodySchema) {}
@@ -22,3 +24,5 @@ export class RefreshTokenResponseDto extends createZodDto(RefreshTokenResSchema)
 export class LogoutBodyDto extends createZodDto(LogoutBodySchema) {}
 export class GetAuthorizeUrlResDto extends createZodDto(GetAuthorizeUrlResSchema) {}
 export class ForgotPasswordBodyDto extends createZodDto(ForgotPasswordBodySchema) {}
+export class Disable2FABodyDto extends createZodDto(Disable2FABodySchema) {}
+export class Setup2FAResDto extends createZodDto(Setup2FAResSchema) {}

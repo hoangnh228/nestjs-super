@@ -25,6 +25,7 @@ import env from 'src/shared/config'
 import { TypeOfVerificationCode, TypeOfVerificationCodeType } from 'src/shared/constants/auth.constant'
 import { EmailService } from 'src/shared/services/email.service'
 import { AccessTokenPayloadCreate } from 'src/shared/types/jwt.type'
+import { TwoFactorAuthenticationService } from 'src/shared/services/2fa.service'
 
 @Injectable()
 export class AuthService {
@@ -35,13 +36,12 @@ export class AuthService {
     private readonly authRepository: AuthRepository,
     private readonly sharedUserRepository: SharedUserRepository,
     private readonly emailService: EmailService,
+    private readonly twoFactorAuthenticationService: TwoFactorAuthenticationService,
   ) {}
 
   async verifyVerificationCode(email: string, code: string, type: TypeOfVerificationCodeType) {
     const verificationCode = await this.authRepository.findVerificationCode({
-      email,
-      code,
-      type,
+      email_code_type: { email, code, type },
     })
 
     if (!verificationCode) {
@@ -79,9 +79,7 @@ export class AuthService {
           roleId: clientRoleId,
         }),
         this.authRepository.deleteVerificationCode({
-          email: body.email,
-          code: body.code,
-          type: TypeOfVerificationCode.REGISTER,
+          email_code_type: { email: body.email, code: body.code, type: TypeOfVerificationCode.REGISTER },
         }),
       ])
 
@@ -282,12 +280,36 @@ export class AuthService {
         },
       ),
       this.authRepository.deleteVerificationCode({
-        email,
-        code,
-        type: TypeOfVerificationCode.FORGOT_PASSWORD,
+        email_code_type: { email, code, type: TypeOfVerificationCode.FORGOT_PASSWORD },
       }),
     ])
 
     return { message: 'Password updated successfully' }
+  }
+
+  async setup2FA(userId: number) {
+    // 1. check user exists, check 2fa is already setup
+    const user = await this.sharedUserRepository.findUnique({ id: userId })
+    if (!user) {
+      throw new UnprocessableEntityException([{ message: 'User not found', path: 'userId' }])
+    }
+
+    if (user.totpSecret) {
+      throw new UnprocessableEntityException([{ message: '2FA is already setup', path: 'userId' }])
+    }
+
+    // 2. generate totp secret
+    const { secret, uri } = this.twoFactorAuthenticationService.generateTOTP(user.email)
+
+    // 3. update user totp secret
+    await this.authRepository.updateUser(
+      { id: userId },
+      {
+        totpSecret: secret,
+      },
+    )
+
+    // 4. return totp secret
+    return { secret, uri }
   }
 }

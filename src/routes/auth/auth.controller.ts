@@ -12,6 +12,7 @@ import {
   RegisterBodyDto,
   RegisterResponseDto,
   SendOtpBodyDto,
+  Setup2FAResDto,
 } from 'src/routes/auth/auth.dto'
 import { AuthService } from 'src/routes/auth/auth.service'
 import { GoogleService } from 'src/routes/auth/google.service'
@@ -19,6 +20,8 @@ import { IsPublic } from 'src/shared/decorators/auth.decorator'
 import { UserAgent } from 'src/shared/decorators/user-agent.decorator'
 import { MessageResDto } from 'src/shared/dto/response.dto'
 import env from 'src/shared/config'
+import { EmptyBodyDto } from 'src/shared/dto/request.dto'
+import { ActiveUser } from 'src/shared/decorators/active-user.decorator'
 
 @Controller('auth')
 export class AuthController {
@@ -87,5 +90,11 @@ export class AuthController {
   @IsPublic()
   forgotPassword(@Body() body: ForgotPasswordBodyDto) {
     return this.authService.forgotPassword(body)
+  }
+
+  @Post('2fa/setup')
+  @ZodSerializerDto(Setup2FAResDto)
+  setup2FA(@Body() _: EmptyBodyDto, @ActiveUser('userId') userId: number) {
+    return this.authService.setup2FA(userId)
   }
 }
