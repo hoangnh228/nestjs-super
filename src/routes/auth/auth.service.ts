@@ -1,8 +1,20 @@
-import { ConflictException, Injectable, UnprocessableEntityException } from '@nestjs/common'
+import {
+  ConflictException,
+  HttpException,
+  Injectable,
+  UnauthorizedException,
+  UnprocessableEntityException,
+} from '@nestjs/common'
 import { AuthRepository } from 'src/routes/auth/auth.repo'
-import { LoginBodyType, RegisterBodyType, SendOtpBodyType } from 'src/routes/auth/auth.model'
+import {
+  LoginBodyType,
+  LogoutBodyType,
+  RefreshTokenBodyType,
+  RegisterBodyType,
+  SendOtpBodyType,
+} from 'src/routes/auth/auth.model'
 import { RolesService } from 'src/routes/auth/roles.service'
-import { generateOtp, isUniqueConstraintPrismaError } from 'src/shared/helpers'
+import { generateOtp, isNotFoundPrismaError, isUniqueConstraintPrismaError } from 'src/shared/helpers'
 import { HashingService } from 'src/shared/services/hashing.service'
 import { TokenService } from 'src/shared/services/token.service'
 import { SharedUserRepository } from 'src/shared/repositories/shared-user.repo'
@@ -99,7 +111,7 @@ export class AuthService {
       ])
     }
 
-    return verificationCode
+    return { message: 'OTP sent successfully' }
   }
 
   async login(body: LoginBodyType & { userAgent: string; ip: string }) {
@@ -159,19 +171,63 @@ export class AuthService {
     return { accessToken, refreshToken }
   }
 
-  // async refreshToken(body: any) {
-  //   try {
-  //     const user = await this.prismaService.user.findUniqueOrThrow({
-  //       where: { email: body.email },
-  //     })
-  //   } catch (error) {}
-  // }
+  async refreshToken({ refreshToken, userAgent, ip }: RefreshTokenBodyType & { userAgent: string; ip: string }) {
+    try {
+      // 1. verify refresh token
+      const { userId } = await this.tokenService.verifyRefreshToken(refreshToken)
 
-  // async logout(body: any) {
-  //   try {
-  //     const user = await this.prismaService.user.findUniqueOrThrow({
-  //       where: { email: body.email },
-  //     })
-  //   } catch (error) {}
-  // }
+      // 2. check if refresh token is valid
+      const refreshTokenWithRole = await this.authRepository.findRefreshTokenWithRole({ token: refreshToken })
+      if (!refreshTokenWithRole) {
+        throw new UnprocessableEntityException([{ message: 'Refresh token is invalid', path: 'refreshToken' }])
+      }
+
+      // 3. update device
+      const $updateDevice = this.authRepository.updateDevice(refreshTokenWithRole.deviceId, {
+        ip,
+        userAgent,
+      })
+
+      // 4. delete refresh token
+      const $deleteRefreshToken = this.authRepository.deleteRefreshToken({ token: refreshToken })
+
+      // 5. generate new tokens
+      const $tokens = this.generateTokens({
+        userId,
+        roleId: refreshTokenWithRole.user.roleId,
+        roleName: refreshTokenWithRole.user.role.name,
+        deviceId: refreshTokenWithRole.deviceId,
+      })
+      const [, , tokens] = await Promise.all([$updateDevice, $deleteRefreshToken, $tokens])
+
+      return tokens
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error
+      }
+      throw new UnauthorizedException()
+    }
+  }
+
+  async logout(body: LogoutBodyType) {
+    try {
+      // 1. verify refresh token
+      await this.tokenService.verifyRefreshToken(body.refreshToken)
+
+      // 2. delete refresh token
+      const deletedRefreshToken = await this.authRepository.deleteRefreshToken({ token: body.refreshToken })
+
+      // 3. update device logged out
+      await this.authRepository.updateDevice(deletedRefreshToken.deviceId, {
+        isActive: false,
+      })
+
+      return { message: 'Logout successful' }
+    } catch (error) {
+      if (isNotFoundPrismaError(error)) {
+        throw new UnauthorizedException('Refresh token is invalid')
+      }
+      throw new UnauthorizedException()
+    }
+  }
 }
