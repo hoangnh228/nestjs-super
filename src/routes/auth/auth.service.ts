@@ -32,7 +32,7 @@ import {
   TwoFactorNotSetupException,
   TwoFactorOrEmailOtpRequiredException,
   UserNotFoundException,
-} from 'src/routes/auth/error.model'
+} from 'src/routes/auth/auth.error'
 
 @Injectable()
 export class AuthService {
