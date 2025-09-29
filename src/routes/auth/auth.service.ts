@@ -1,6 +1,6 @@
-import { ConflictException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common'
+import { ConflictException, Injectable, UnprocessableEntityException } from '@nestjs/common'
 import { AuthRepository } from 'src/routes/auth/auth.repo'
-import { RegisterBodyType, SendOtpBodyType } from 'src/routes/auth/auth.model'
+import { LoginBodyType, RegisterBodyType, SendOtpBodyType } from 'src/routes/auth/auth.model'
 import { RolesService } from 'src/routes/auth/roles.service'
 import { generateOtp, isUniqueConstraintPrismaError } from 'src/shared/helpers'
 import { HashingService } from 'src/shared/services/hashing.service'
@@ -11,6 +11,7 @@ import ms from 'ms'
 import env from 'src/shared/config'
 import { TypeOfVerificationCode } from 'src/shared/constants/auth.constant'
 import { EmailService } from 'src/shared/services/email.service'
+import { AccessTokenPayloadCreate } from 'src/shared/types/jwt.type'
 
 @Injectable()
 export class AuthService {
@@ -84,7 +85,7 @@ export class AuthService {
       email: body.email,
       type: body.type,
       code: otp,
-      expiresAt: addMilliseconds(new Date(), ms(env.OTP_EXPIRES_IN)),
+      expiresAt: addMilliseconds(new Date(), ms(env.OTP_EXPIRES_IN as ms.StringValue)),
     })
 
     const { error } = await this.emailService.sendOtp({ email: body.email, code: verificationCode.code })
@@ -101,13 +102,62 @@ export class AuthService {
     return verificationCode
   }
 
-  // async login(body: any) {
-  //   try {
-  //     const user = await this.prismaService.user.findUniqueOrThrow({
-  //       where: { email: body.email },
-  //     })
-  //   } catch (error) {}
-  // }
+  async login(body: LoginBodyType & { userAgent: string; ip: string }) {
+    const user = await this.authRepository.findUserWithRole({
+      email: body.email,
+    })
+
+    if (!user) {
+      throw new UnprocessableEntityException([
+        {
+          message: 'User not found',
+          path: 'email',
+        },
+      ])
+    }
+
+    const isPasswordValid = await this.hashingService.compare(body.password, user.password)
+    if (!isPasswordValid) {
+      throw new UnprocessableEntityException([
+        {
+          message: 'Invalid password',
+          path: 'password',
+        },
+      ])
+    }
+
+    const device = await this.authRepository.createDevice({
+      userId: user.id,
+      userAgent: body.userAgent,
+      ip: body.ip,
+    })
+
+    const tokens = await this.generateTokens({
+      userId: user.id,
+      roleId: user.roleId,
+      roleName: user.role.name,
+      deviceId: device.id,
+    })
+
+    return tokens
+  }
+
+  async generateTokens({ userId, roleId, roleName, deviceId }: AccessTokenPayloadCreate) {
+    const [accessToken, refreshToken] = await Promise.all([
+      this.tokenService.signAccessToken({ userId, roleId, roleName, deviceId }),
+      this.tokenService.signRefreshToken({ userId }),
+    ])
+
+    const decodedRefreshToken = await this.tokenService.verifyRefreshToken(refreshToken)
+    await this.authRepository.createRefreshToken({
+      userId,
+      token: refreshToken,
+      expiresAt: new Date(decodedRefreshToken.exp * 1000),
+      deviceId,
+    })
+
+    return { accessToken, refreshToken }
+  }
 
   // async refreshToken(body: any) {
   //   try {
