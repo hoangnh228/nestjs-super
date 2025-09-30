@@ -6,8 +6,8 @@ import {
   GetLanguageParamsDto,
   GetLanguagesResDto,
   UpdateLanguageBodyDto,
-} from 'src/routes/languages/language.dto'
-import { LanguageService } from 'src/routes/languages/language.service'
+} from 'src/routes/language/language.dto'
+import { LanguageService } from 'src/routes/language/language.service'
 import { ActiveUser } from 'src/shared/decorators/active-user.decorator'
 import { MessageResDto } from 'src/shared/dto/response.dto'
 
