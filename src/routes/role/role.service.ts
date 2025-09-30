@@ -1,6 +1,13 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common'
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common'
 import { CreateRoleBodyType, GetRolesQueryType, UpdateRoleBodyType } from 'src/routes/role/role.model'
 import { RoleRepo } from 'src/routes/role/role.repo'
+import { ROLES } from 'src/shared/constants/role.constants'
 import { isNotFoundPrismaError, isUniqueConstraintPrismaError } from 'src/shared/helpers'
 
 @Injectable()
@@ -32,6 +39,16 @@ export class RoleService {
 
   async update({ id, data, updatedById }: { id: number; data: UpdateRoleBodyType; updatedById: number }) {
     try {
+      const role = await this.roleRepo.findById(id)
+      if (!role) {
+        throw new NotFoundException('Role not found')
+      }
+
+      // not allow to delete ADMIN role
+      if (role.name === ROLES.ADMIN) {
+        throw new ForbiddenException()
+      }
+
       return await this.roleRepo.update({ id, data, updatedById })
     } catch (error) {
       if (isNotFoundPrismaError(error)) {
@@ -49,6 +66,17 @@ export class RoleService {
 
   async delete({ id, deletedById }: { id: number; deletedById: number }) {
     try {
+      const role = await this.roleRepo.findById(id)
+      if (!role) {
+        throw new NotFoundException('Role not found')
+      }
+
+      // not allow to delete this 3 base roles
+      const baseRoles: string[] = [ROLES.ADMIN, ROLES.CLIENT, ROLES.SELLER]
+      if (baseRoles.includes(role.name)) {
+        throw new ForbiddenException()
+      }
+
       await this.roleRepo.delete({ id, deletedById })
       return { message: 'Role deleted successfully' }
     } catch (error) {
