@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import { RoleType } from 'src/routes/auth/auth.model'
 import { ROLES } from 'src/shared/constants/role.constants'
 import { PrismaService } from 'src/shared/services/prisma.service'
 
@@ -13,12 +14,17 @@ export class RolesService {
       return this.clientRoleId
     }
 
-    const clientRole = await this.prismaService.role.findUniqueOrThrow({
-      where: {
-        name: ROLES.CLIENT,
+    const role: RoleType = await this.prismaService
+      .$queryRaw`SELECT * FROM "Role" WHERE "name" = ${ROLES.CLIENT} AND "deletedAt" IS NULL LIMIT 1`.then(
+      (res: RoleType[]) => {
+        if (res.length > 0) {
+          return res[0]
+        }
+        throw new Error('Client role not found')
       },
-    })
-    this.clientRoleId = clientRole.id
-    return this.clientRoleId
+    )
+
+    this.clientRoleId = role.id
+    return role.id
   }
 }
