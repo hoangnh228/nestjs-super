@@ -1,18 +1,6 @@
 import { HTTP_METHODS } from 'src/shared/constants/role.constants'
 import z from 'zod'
-
-export const PermissionSchema = z.object({
-  id: z.number(),
-  name: z.string(),
-  description: z.string(),
-  path: z.string(),
-  method: z.enum(HTTP_METHODS),
-  // module: z.string(),
-  createdById: z.number().nullable(),
-  updatedById: z.number().nullable(),
-  createdAt: z.date(),
-  updatedAt: z.date(),
-})
+import { PermissionSchema } from '../../shared/models/shared-permission.model'
 
 export const GetPermissionsResSchema = z.object({
   data: z.array(PermissionSchema),
@@ -41,6 +29,7 @@ export const CreatePermissionBodySchema = PermissionSchema.pick({
   name: true,
   path: true,
   method: true,
+  module: true,
 }).strict()
 
 export const UpdatePermissionBodySchema = CreatePermissionBodySchema

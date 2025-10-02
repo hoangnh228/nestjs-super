@@ -1,5 +1,5 @@
-import { PermissionSchema } from 'src/routes/permission/permission.model'
 import z from 'zod'
+import { PermissionSchema } from '../../shared/models/shared-permission.model'
 
 export const RoleSchema = z.object({
   id: z.number(),

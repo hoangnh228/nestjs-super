@@ -17,20 +17,23 @@ async function bootstrap() {
     },
   })
 
-  const availableRoutes: { path: string; method: keyof typeof HTTP_METHODS; name: string }[] = router.stack
-    .map((layer) => {
-      if (layer.route) {
-        const method = (layer.route?.stack[0]?.method as string).toUpperCase() as keyof typeof HTTP_METHODS
-        const path = layer.route?.path
-        const name = `${method} ${path.split('/').pop()}`
-        return {
-          path,
-          method,
-          name,
+  const availableRoutes: { path: string; method: keyof typeof HTTP_METHODS; name: string; module: string }[] =
+    router.stack
+      .map((layer: any) => {
+        if (layer.route) {
+          const method = (layer.route?.stack[0]?.method as string).toUpperCase() as keyof typeof HTTP_METHODS
+          const path = layer.route?.path
+          const name = `${method} ${path.split('/').pop()}`
+          const module = (path.split('/')[1] as string).toUpperCase()
+          return {
+            path,
+            method,
+            name,
+            module,
+          }
         }
-      }
-    })
-    .filter((route) => route !== undefined)
+      })
+      .filter((route: any) => route !== undefined)
 
   console.log(availableRoutes)
 

@@ -38,9 +38,9 @@ export class AuthenticationGuard implements CanActivate {
     )
   }
 
-  private async handleOrCondition(uards: CanActivate[], context: ExecutionContext): Promise<boolean> {
+  private async handleOrCondition(guards: CanActivate[], context: ExecutionContext): Promise<boolean> {
     let lastError: any = null
-    const guards = this.getAuthTypeValue(context).authTypes.map((authType) => this.authTypeGuardMap[authType])
+
     for (const guard of guards) {
       try {
         if (await guard.canActivate(context)) {
