@@ -1,10 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common'
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
 import { CreateRoleBodyType, GetRolesQueryType, UpdateRoleBodyType } from 'src/routes/role/role.model'
 import { RoleRepo } from 'src/routes/role/role.repo'
 import { ROLES } from 'src/shared/constants/role.constants'
@@ -37,18 +31,21 @@ export class RoleService {
     }
   }
 
+  private async verifyRole(id: number) {
+    const role = await this.roleRepo.findById(id)
+    if (!role) {
+      throw new NotFoundException('Role not found')
+    }
+
+    const baseRoles: string[] = [ROLES.ADMIN, ROLES.CLIENT, ROLES.SELLER]
+    if (baseRoles.includes(role.name)) {
+      throw new ForbiddenException()
+    }
+  }
+
   async update({ id, data, updatedById }: { id: number; data: UpdateRoleBodyType; updatedById: number }) {
     try {
-      const role = await this.roleRepo.findById(id)
-      if (!role) {
-        throw new NotFoundException('Role not found')
-      }
-
-      // not allow to delete ADMIN role
-      if (role.name === ROLES.ADMIN) {
-        throw new ForbiddenException()
-      }
-
+      await this.verifyRole(id)
       return await this.roleRepo.update({ id, data, updatedById })
     } catch (error) {
       if (isNotFoundPrismaError(error)) {
@@ -57,26 +54,13 @@ export class RoleService {
       if (isUniqueConstraintPrismaError(error)) {
         throw new ConflictException('Role already exists')
       }
-      if (error instanceof Error) {
-        throw new BadRequestException(error.message)
-      }
       throw error
     }
   }
 
   async delete({ id, deletedById }: { id: number; deletedById: number }) {
     try {
-      const role = await this.roleRepo.findById(id)
-      if (!role) {
-        throw new NotFoundException('Role not found')
-      }
-
-      // not allow to delete this 3 base roles
-      const baseRoles: string[] = [ROLES.ADMIN, ROLES.CLIENT, ROLES.SELLER]
-      if (baseRoles.includes(role.name)) {
-        throw new ForbiddenException()
-      }
-
+      await this.verifyRole(id)
       await this.roleRepo.delete({ id, deletedById })
       return { message: 'Role deleted successfully' }
     } catch (error) {

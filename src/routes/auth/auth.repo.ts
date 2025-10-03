@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common'
-import { DeviceType, RefreshTokenType, RoleType, VerificationCodeType } from 'src/routes/auth/auth.model'
+import { DeviceType, RefreshTokenType, VerificationCodeType } from 'src/routes/auth/auth.model'
 import { TypeOfVerificationCodeType } from 'src/shared/constants/auth.constant'
+import { RoleType } from 'src/shared/models/shared-role.model'
 import { UserType } from 'src/shared/models/shared-user.model'
+import { WhereUniqueUserType } from 'src/shared/repositories/shared-user.repo'
 import { PrismaService } from 'src/shared/services/prisma.service'
 
 @Injectable()
@@ -54,7 +56,7 @@ export class AuthRepository {
     return this.prismaService.device.create({ data })
   }
 
-  findUserWithRole(where: { email: string } | { id: number }): Promise<(UserType & { role: RoleType }) | null> {
+  findUserWithRole(where: WhereUniqueUserType): Promise<(UserType & { role: RoleType }) | null> {
     return this.prismaService.user.findUnique({
       where,
       include: { role: true },
@@ -80,16 +82,6 @@ export class AuthRepository {
   deleteRefreshToken(payload: { token: string }): Promise<RefreshTokenType> {
     return this.prismaService.refreshToken.delete({
       where: { token: payload.token },
-    })
-  }
-
-  updateUser(
-    where: { id: number } | { email: string },
-    data: Partial<Omit<UserType, 'id' | 'createdAt' | 'updatedAt' | 'deletedAt'>>,
-  ): Promise<UserType> {
-    return this.prismaService.user.update({
-      where,
-      data,
     })
   }
 

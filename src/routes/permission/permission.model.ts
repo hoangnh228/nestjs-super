@@ -1,4 +1,3 @@
-import { HTTP_METHODS } from 'src/shared/constants/role.constants'
 import z from 'zod'
 import { PermissionSchema } from '../../shared/models/shared-permission.model'
 
@@ -34,7 +33,6 @@ export const CreatePermissionBodySchema = PermissionSchema.pick({
 
 export const UpdatePermissionBodySchema = CreatePermissionBodySchema
 
-export type PermissionType = z.infer<typeof PermissionSchema>
 export type GetPermissionsResType = z.infer<typeof GetPermissionsResSchema>
 export type GetPermissionQueryType = z.infer<typeof GetPermissionQuerySchema>
 export type GetPermissionParamsType = z.infer<typeof GetPermissionParamsSchema>

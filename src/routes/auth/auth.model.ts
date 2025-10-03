@@ -173,7 +173,6 @@ export const Setup2FAResSchema = z.object({
   uri: z.string(),
 })
 
-export type RoleType = z.infer<typeof RoleSchema>
 export type DeviceType = z.infer<typeof DeviceSchema>
 export type SendOtpBodyType = z.infer<typeof SendOtpBodySchema>
 export type VerificationCodeType = z.infer<typeof VerificationCodeSchema>

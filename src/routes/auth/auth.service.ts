@@ -9,7 +9,6 @@ import {
   RegisterBodyType,
   SendOtpBodyType,
 } from 'src/routes/auth/auth.model'
-import { RolesService } from 'src/routes/auth/roles.service'
 import { generateOtp, isNotFoundPrismaError, isUniqueConstraintPrismaError } from 'src/shared/helpers'
 import { HashingService } from 'src/shared/services/hashing.service'
 import { TokenService } from 'src/shared/services/token.service'
@@ -33,11 +32,12 @@ import {
   TwoFactorOrEmailOtpRequiredException,
   UserNotFoundException,
 } from 'src/routes/auth/auth.error'
+import { SharedRoleRepository } from 'src/shared/repositories/shared-role.repo'
 
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly rolesService: RolesService,
+    private readonly sharedRoleRepository: SharedRoleRepository,
     private readonly tokenService: TokenService,
     private readonly hashingService: HashingService,
     private readonly authRepository: AuthRepository,
@@ -64,7 +64,7 @@ export class AuthService {
 
   async register(body: RegisterBodyType) {
     try {
-      const clientRoleId = await this.rolesService.getClientRoleId()
+      const clientRoleId = await this.sharedRoleRepository.getClientRoleId()
       const hashedPassword = await this.hashingService.hash(body.password)
       await this.verifyVerificationCode(body.email, body.code, TypeOfVerificationCode.REGISTER)
       const [user] = await Promise.all([
@@ -91,7 +91,7 @@ export class AuthService {
 
   async sendOtp(body: SendOtpBodyType) {
     // 1. check if user exists
-    const user = await this.sharedUserRepository.findUnique({ email: body.email })
+    const user = await this.sharedUserRepository.findUnique({ email: body.email, deletedAt: null })
     if (user && body.type === TypeOfVerificationCode.REGISTER) {
       throw EmailAlreadyExistsException
     }
@@ -121,6 +121,7 @@ export class AuthService {
   async login(body: LoginBodyType & { userAgent: string; ip: string }) {
     const user = await this.authRepository.findUserWithRole({
       email: body.email,
+      deletedAt: null,
     })
 
     if (!user) {
@@ -249,7 +250,7 @@ export class AuthService {
     const { email, code, newPassword } = body
 
     // 1. check email exists
-    const user = await this.sharedUserRepository.findUnique({ email })
+    const user = await this.sharedUserRepository.findUnique({ email, deletedAt: null })
     if (!user) {
       throw EmailNotFoundException
     }
@@ -260,10 +261,11 @@ export class AuthService {
     // 3. update password and delete otp
     const hashedPassword = await this.hashingService.hash(newPassword)
     await Promise.all([
-      this.authRepository.updateUser(
-        { id: user.id },
+      this.sharedUserRepository.update(
+        { id: user.id, deletedAt: null },
         {
           password: hashedPassword,
+          updatedById: user.id,
         },
       ),
       this.authRepository.deleteVerificationCode({
@@ -276,7 +278,7 @@ export class AuthService {
 
   async setup2FA(userId: number) {
     // 1. check user exists, check 2fa is already setup
-    const user = await this.sharedUserRepository.findUnique({ id: userId })
+    const user = await this.sharedUserRepository.findUnique({ id: userId, deletedAt: null })
     if (!user) {
       throw new UnprocessableEntityException([{ message: 'User not found', path: 'userId' }])
     }
@@ -289,10 +291,11 @@ export class AuthService {
     const { secret, uri } = this.twoFactorAuthenticationService.generateTOTP(user.email)
 
     // 3. update user totp secret
-    await this.authRepository.updateUser(
-      { id: userId },
+    await this.sharedUserRepository.update(
+      { id: userId, deletedAt: null },
       {
         totpSecret: secret,
+        updatedById: userId,
       },
     )
 
@@ -303,7 +306,7 @@ export class AuthService {
   async disable2FA(data: Disable2FABodyType & { userId: number }) {
     const { userId, totpCode, code } = data
 
-    const user = await this.sharedUserRepository.findUnique({ id: userId })
+    const user = await this.sharedUserRepository.findUnique({ id: userId, deletedAt: null })
     if (!user) {
       throw UserNotFoundException
     }
@@ -327,7 +330,7 @@ export class AuthService {
     }
 
     // 5. update user totp secret
-    await this.authRepository.updateUser({ id: userId }, { totpSecret: null })
+    await this.sharedUserRepository.update({ id: userId, deletedAt: null }, { totpSecret: null, updatedById: userId })
 
     return { message: '2FA disabled successfully' }
   }

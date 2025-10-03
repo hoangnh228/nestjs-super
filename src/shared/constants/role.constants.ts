@@ -14,5 +14,4 @@ export const HTTP_METHODS = {
   HEAD: 'HEAD',
 } as const
 
-export type RoleType = (typeof ROLES)[keyof typeof ROLES]
 export type HTTPMethodType = (typeof HTTP_METHODS)[keyof typeof HTTP_METHODS]
