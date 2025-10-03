@@ -8,6 +8,7 @@ import { AccessTokenGuard } from 'src/shared/guards/access-token.guard'
 import { APP_GUARD } from '@nestjs/core'
 import { AuthenticationGuard } from 'src/shared/guards/authentication.guard'
 import { SharedUserRepository } from 'src/shared/repositories/shared-user.repo'
+import { SharedRoleRepository } from 'src/shared/repositories/shared-role.repo'
 import { EmailService } from 'src/shared/services/email.service'
 import { TwoFactorAuthenticationService } from 'src/shared/services/2fa.service'
 
@@ -16,6 +17,7 @@ const sharedServices = [
   HashingService,
   TokenService,
   SharedUserRepository,
+  SharedRoleRepository,
   EmailService,
   TwoFactorAuthenticationService,
 ]

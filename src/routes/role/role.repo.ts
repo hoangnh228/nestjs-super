@@ -3,7 +3,7 @@ import {
   CreateRoleBodyType,
   GetRolesQueryType,
   GetRolesResType,
-  RoleWithPermissionsType,
+  RolePermissionsType,
   UpdateRoleBodyType,
 } from 'src/routes/role/role.model'
 import { PrismaService } from 'src/shared/services/prisma.service'
@@ -31,7 +31,7 @@ export class RoleRepo {
     }
   }
 
-  async findById(id: number): Promise<RoleWithPermissionsType | null> {
+  async findById(id: number): Promise<RolePermissionsType | null> {
     return this.prisma.role.findUnique({
       where: { id, deletedAt: null },
       include: { permissions: { where: { deletedAt: null } } },

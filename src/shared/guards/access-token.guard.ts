@@ -1,6 +1,6 @@
 import { Injectable, CanActivate, ExecutionContext, UnauthorizedException, ForbiddenException } from '@nestjs/common'
 import { Request } from 'express'
-import { REQUEST_USER_KEY } from 'src/shared/constants/auth.constant'
+import { REQUEST_ROLE_PERMISSIONS, REQUEST_USER_KEY } from 'src/shared/constants/auth.constant'
 import { HTTP_METHODS, HTTPMethodType } from 'src/shared/constants/role.constants'
 import { PrismaService } from 'src/shared/services/prisma.service'
 import { TokenService } from 'src/shared/services/token.service'
@@ -61,5 +61,7 @@ export class AccessTokenGuard implements CanActivate {
     if (!hasPermission) {
       throw new ForbiddenException('You are not authorized to access this resource')
     }
+
+    request[REQUEST_ROLE_PERMISSIONS] = role
   }
 }

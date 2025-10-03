@@ -10,6 +10,10 @@ export const isNotFoundPrismaError = (error: any): error is PrismaClientKnownReq
   return error instanceof PrismaClientKnownRequestError && error.code === 'P2025'
 }
 
+export const isForeignKeyConstraintPrismaError = (error: any): error is PrismaClientKnownRequestError => {
+  return error instanceof PrismaClientKnownRequestError && error.code === 'P2003'
+}
+
 export const generateOtp = () => {
   return String(randomInt(100000, 999999))
 }
