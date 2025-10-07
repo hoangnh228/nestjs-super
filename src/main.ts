@@ -2,7 +2,7 @@ import { NestFactory } from '@nestjs/core'
 import { AppModule } from './app.module'
 import env from './shared/config'
 import { NestExpressApplication } from '@nestjs/platform-express'
-import { UPLOAD_DIR } from 'src/shared/constants/other.constant'
+// import { UPLOAD_DIR } from 'src/shared/constants/other.constant'
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule)
