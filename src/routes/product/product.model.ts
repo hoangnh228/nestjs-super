@@ -3,6 +3,7 @@ import { ProductTranslationSchema } from 'src/routes/product/product-translation
 import { BrandIncludeTranslationSchema } from 'src/shared/models/shared-brand.model'
 import { CategoryIncludeTranslationSchema } from 'src/shared/models/shared-category.model'
 import z from 'zod'
+import { OrderBy, SortBy } from 'src/shared/constants/other.constant'
 
 function generateSKUs(variants: VariantsType) {
   if (variants.length === 0) return []
@@ -23,16 +24,16 @@ function generateSKUs(variants: VariantsType) {
 }
 
 export const VariantSchema = z.object({
-  value: z.string(),
-  options: z.array(z.string()),
+  value: z.string().trim(),
+  options: z.array(z.string().trim()),
 })
 
 export const VariantsSchema = z.array(VariantSchema).superRefine((variants, ctx) => {
   // check variants and variant options are unique
   for (let i = 0; i < variants.length; i++) {
     const variant = variants[i]
-    const isDifferent = variants.findIndex((v) => v.value === variant.value) !== i
-    if (!isDifferent) {
+    const isExisting = variants.findIndex((v) => v.value.toLowerCase() === variant.value.toLowerCase()) !== i
+    if (isExisting) {
       return ctx.addIssue({
         code: 'custom',
         message: `Variant name '${variant.value}' must be unique`,
@@ -40,7 +41,9 @@ export const VariantsSchema = z.array(VariantSchema).superRefine((variants, ctx)
       })
     }
 
-    const isDifferentOptions = variant.options.findIndex((opt) => variant.options.includes(opt)) !== -1
+    const isDifferentOptions = variant.options.some((option, index) => {
+      return variant.options.findIndex((opt) => opt.toLowerCase() === option.toLowerCase()) !== index
+    })
     if (isDifferentOptions) {
       return ctx.addIssue({
         code: 'custom',
@@ -54,9 +57,9 @@ export const VariantsSchema = z.array(VariantSchema).superRefine((variants, ctx)
 export const ProductSchema = z.object({
   id: z.number(),
   publishedAt: z.coerce.date().nullable(),
-  name: z.string().max(500),
-  basePrice: z.number().positive(),
-  virtualPrice: z.number().positive(),
+  name: z.string().trim().max(500),
+  basePrice: z.number().min(0),
+  virtualPrice: z.number().min(0),
   brandId: z.number().positive(),
   images: z.array(z.string()),
   variants: VariantsSchema,
@@ -69,14 +72,38 @@ export const ProductSchema = z.object({
   deletedAt: z.date().nullable(),
 })
 
+// for client and guest
 export const GetProductsQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().default(10),
   name: z.string().optional(),
-  brandIds: z.array(z.coerce.number().int().positive()).optional(),
-  categories: z.array(z.coerce.number().int().positive()).optional(),
+  brandIds: z
+    .preprocess((value) => {
+      if (typeof value === 'string') {
+        return [Number(value)]
+      }
+      return value
+    }, z.array(z.coerce.number().int().positive()))
+    .optional(),
+  categories: z
+    .preprocess((value) => {
+      if (typeof value === 'string') {
+        return [Number(value)]
+      }
+      return value
+    }, z.array(z.coerce.number().int().positive()))
+    .optional(),
   minPrice: z.coerce.number().positive().optional(),
   maxPrice: z.coerce.number().positive().optional(),
+  createdById: z.coerce.number().int().positive().optional(),
+  orderBy: z.enum([OrderBy.Asc, OrderBy.Desc]).default(OrderBy.Desc),
+  sortBy: z.enum([SortBy.CreatedAt, SortBy.Price, SortBy.Sale]).default(SortBy.CreatedAt),
+})
+
+// for admin and sellers
+export const GetManageProductsQuerySchema = GetProductsQuerySchema.extend({
+  isPublic: z.preprocess((value) => value === 'true', z.boolean()).optional(),
+  createdById: z.coerce.number().int().positive(),
 })
 
 export const GetProductsResSchema = z.object({
@@ -147,6 +174,7 @@ export const UpdateProductBodySchema = CreateProductBodySchema
 export type ProductType = z.infer<typeof ProductSchema>
 export type VariantsType = z.infer<typeof VariantsSchema>
 export type GetProductsQueryType = z.infer<typeof GetProductsQuerySchema>
+export type GetManageProductsQueryType = z.infer<typeof GetManageProductsQuerySchema>
 export type GetProductsResType = z.infer<typeof GetProductsResSchema>
 export type GetProductParamsType = z.infer<typeof GetProductParamsSchema>
 export type GetProductDetailResType = z.infer<typeof GetProductDetailResSchema>

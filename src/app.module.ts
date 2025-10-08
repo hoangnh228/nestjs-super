@@ -19,6 +19,8 @@ import { AcceptLanguageResolver, HeaderResolver, I18nModule, QueryResolver } fro
 import path from 'path'
 import { CategoryModule } from 'src/routes/category/category.module'
 import { CategoryTranslationModule } from 'src/routes/category/category-translation/category-translation.module'
+import { ProductModule } from 'src/routes/product/product.module'
+import { ProductTranslationModule } from 'src/routes/product/product-translation/product-translation.module'
 
 @Module({
   imports: [
@@ -34,6 +36,8 @@ import { CategoryTranslationModule } from 'src/routes/category/category-translat
     BrandTranslationModule,
     CategoryModule,
     CategoryTranslationModule,
+    ProductModule,
+    ProductTranslationModule,
     I18nModule.forRoot({
       fallbackLanguage: 'en',
       loaderOptions: {

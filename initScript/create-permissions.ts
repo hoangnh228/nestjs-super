@@ -3,6 +3,8 @@ import { AppModule } from 'src/app.module'
 import { HTTP_METHODS, ROLES } from 'src/shared/constants/role.constants'
 import { PrismaService } from 'src/shared/services/prisma.service'
 
+const SellerModules = ['AUTH', 'MEDIA', 'MANAGE-PRODUCT', 'PRODUCT-TRANSLATION', 'PROFILE']
+
 const prisma = new PrismaService()
 
 async function bootstrap() {
@@ -35,7 +37,7 @@ async function bootstrap() {
       })
       .filter((route: any) => route !== undefined)
 
-  console.log(availableRoutes)
+  // console.log(availableRoutes)
 
   // create object dbPermissions with key is [method-path]
   const dbPermissionsObject: Record<string, (typeof dbPermissions)[number]> = dbPermissions.reduce(
@@ -110,7 +112,32 @@ async function bootstrap() {
     },
   })
 
+  const adminPermissionIds = latestPermissions.map((permission) => ({ id: permission.id }))
+  const sellerPermissionIds = latestPermissions
+    .filter((permission) => SellerModules.includes(permission.module))
+    .map((p) => ({ id: p.id }))
+
+  await Promise.all([updateRole(adminPermissionIds, ROLES.ADMIN), updateRole(sellerPermissionIds, ROLES.SELLER)])
+
   process.exit(0)
+}
+
+const updateRole = async (permissionIds: { id: number }[], roleName: string) => {
+  const role = await prisma.role.findFirstOrThrow({
+    where: {
+      name: roleName,
+      deletedAt: null,
+    },
+  })
+
+  await prisma.role.update({
+    where: {
+      id: role.id,
+    },
+    data: {
+      permissions: { set: permissionIds },
+    },
+  })
 }
 
 void bootstrap()
