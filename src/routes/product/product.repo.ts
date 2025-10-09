@@ -2,13 +2,13 @@ import {
   CreateProductBodyType,
   GetProductDetailResType,
   GetProductsResType,
-  ProductType,
   UpdateProductBodyType,
 } from 'src/routes/product/product.model'
 import { PrismaService } from './../../shared/services/prisma.service'
 import { Injectable } from '@nestjs/common'
 import { ALL_LANGUAGE_CODE, OrderByType, SortBy, SortByType } from 'src/shared/constants/other.constant'
 import { Prisma } from '@prisma/client'
+import { ProductType } from 'src/shared/models/shared-product.model'
 
 @Injectable()
 export class ProductRepo {
