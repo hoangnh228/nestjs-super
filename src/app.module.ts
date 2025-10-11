@@ -23,6 +23,10 @@ import { ProductModule } from 'src/routes/product/product.module'
 import { ProductTranslationModule } from 'src/routes/product/product-translation/product-translation.module'
 import { CartModule } from 'src/routes/cart/cart.module'
 import { OrderModule } from 'src/routes/order/order.module'
+import { PaymentModule } from 'src/routes/payment/payment.module'
+import { BullModule } from '@nestjs/bullmq'
+import { PaymentConsumer } from 'src/queues/payment.consumer'
+import env from 'src/shared/config'
 
 @Module({
   imports: [
@@ -42,6 +46,18 @@ import { OrderModule } from 'src/routes/order/order.module'
     ProductTranslationModule,
     CartModule,
     OrderModule,
+    PaymentModule,
+    BullModule.forRoot({
+      connection: {
+        // host: 'localhost',
+        // port: 6379,
+        // host: 'redis-17342.c292.ap-southeast-1-1.ec2.redns.redis-cloud.com',
+        // port: 17342,
+        // username: 'default',
+        // password: 'mfxvZzsGdJNTgo3KMGRkQtjBVqGxhG1Q',
+        url: env.REDIS_URL,
+      },
+    }),
     I18nModule.forRoot({
       fallbackLanguage: 'en',
       loaderOptions: {
@@ -61,6 +77,7 @@ import { OrderModule } from 'src/routes/order/order.module'
     },
     { provide: APP_INTERCEPTOR, useClass: ZodSerializerInterceptor },
     { provide: APP_FILTER, useClass: HttpExceptionFilter },
+    PaymentConsumer,
   ],
 })
 export class AppModule {}

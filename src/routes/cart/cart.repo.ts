@@ -41,8 +41,9 @@ export class CartRepo {
     ])
 
     if (!sku) throw new NotFoundException('SKU not found')
-    if (!cartItem) throw new NotFoundException('Cart item not found')
-    if (isCreate && quantity + cartItem.quantity > sku.stock) throw new BadRequestException('Invalid quantity')
+    if (cartItem && isCreate && quantity + cartItem.quantity > sku.stock) {
+      throw new BadRequestException('Invalid quantity')
+    }
 
     if (sku.stock < 1 || sku.stock < quantity) throw new BadRequestException('SKU out of stock')
 

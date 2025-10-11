@@ -223,6 +223,7 @@ export class ProductRepo {
     const skusToCreate = skusWithId
       .filter((sku) => sku.id === null)
       .map((sku) => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { id: skuId, ...rest } = sku
         return {
           ...rest,

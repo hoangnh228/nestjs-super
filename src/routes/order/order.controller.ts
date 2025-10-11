@@ -37,6 +37,7 @@ export class OrderController {
 
   @Put(':orderId')
   @ZodSerializerDto(CancelOrderResDto)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   cancel(@ActiveUser('userId') userId: number, @Param() params: GetOrderParamsDto, @Body() _: CancelOrderBodyDto) {
     return this.orderService.cancel(userId, params.orderId)
   }

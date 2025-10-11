@@ -11,10 +11,15 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma } from '@prisma/client'
 import { OrderStatus } from 'src/shared/constants/order.constant'
 import { isNotFoundPrismaError } from 'src/shared/helpers'
+import { PaymentStatus } from 'src/shared/constants/payment.constant'
+import { OrderProducer } from 'src/routes/order/order.producer'
 
 @Injectable()
 export class OrderRepo {
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly orderProducer: OrderProducer,
+  ) {}
 
   async list(userId: number, query: GetOrderListQueryType): Promise<GetOrderListResType> {
     const { limit, page, status } = query
@@ -44,7 +49,10 @@ export class OrderRepo {
     }
   }
 
-  async create(userId: number, body: CreateOrderBodyType): Promise<CreateOrderResType> {
+  async create(
+    userId: number,
+    body: CreateOrderBodyType,
+  ): Promise<{ paymentId: number; orders: CreateOrderResType['data'] }> {
     const allBodyCartItemIds = body.flatMap((b) => b.cartItemIds)
     const cartItems = await this.prismaService.cartItem.findMany({
       where: { id: { in: allBodyCartItemIds }, userId },
@@ -85,13 +93,13 @@ export class OrderRepo {
     }
 
     // 5. create order
-    const orders = await this.prismaService.$transaction(async (tx) => {
+    const [paymentId, orders] = await this.prismaService.$transaction(async (tx) => {
       // Create payment first
       const payment = await tx.payment.create({
-        data: { status: 'PENDING' },
+        data: { status: PaymentStatus.PENDING },
       })
 
-      const orders = await Promise.all(
+      const orders$ = Promise.all(
         body.map((item) =>
           tx.order.create({
             data: {
@@ -133,12 +141,23 @@ export class OrderRepo {
       )
 
       // 6. delete cart items
-      await tx.cartItem.deleteMany({ where: { id: { in: allBodyCartItemIds } } })
+      const cardItem$ = tx.cartItem.deleteMany({ where: { id: { in: allBodyCartItemIds } } })
 
-      return orders
+      const sku$ = Promise.all(
+        cartItems.map((item) =>
+          tx.sKU.update({
+            where: { id: item.sku.id },
+            data: { stock: { decrement: item.quantity } },
+          }),
+        ),
+      )
+
+      const addCancelPaymentJob$ = this.orderProducer.addCancelPaymentJob(payment.id)
+      const [orders] = await Promise.all([orders$, cardItem$, sku$, addCancelPaymentJob$])
+      return [payment.id, orders]
     })
 
-    return { data: orders }
+    return { paymentId, orders }
   }
 
   async detail(userId: number, orderId: number): Promise<GetOrderDetailResType> {

@@ -18,7 +18,7 @@ const configSchema = z.object({
   ACCESS_TOKEN_EXPIRES_IN: z.string(),
   REFRESH_TOKEN_SECRET: z.string(),
   REFRESH_TOKEN_EXPIRES_IN: z.string(),
-  API_KEY: z.string(),
+  PAYMENT_API_KEY: z.string(),
   ADMIN_EMAIL: z.string(),
   ADMIN_NAME: z.string(),
   ADMIN_PASSWORD: z.string(),
@@ -34,6 +34,7 @@ const configSchema = z.object({
   S3_ACCESS_KEY: z.string(),
   S3_SECRET_KEY: z.string(),
   S3_BUCKET: z.string(),
+  REDIS_URL: z.string(),
 })
 
 const configServer = configSchema.safeParse(process.env)
