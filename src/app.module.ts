@@ -27,6 +27,7 @@ import { PaymentModule } from 'src/routes/payment/payment.module'
 import { BullModule } from '@nestjs/bullmq'
 import { PaymentConsumer } from 'src/queues/payment.consumer'
 import env from 'src/shared/config'
+import { WebsocketModule } from 'src/websockets/websocket.module'
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import env from 'src/shared/config'
     CartModule,
     OrderModule,
     PaymentModule,
+    WebsocketModule,
     BullModule.forRoot({
       connection: {
         // host: 'localhost',

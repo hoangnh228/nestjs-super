@@ -43,7 +43,8 @@ export const CreateOrderBodySchema = z
   .min(1)
 
 export const CreateOrderResSchema = z.object({
-  data: z.array(OrderSchema),
+  paymentId: z.number(),
+  orders: z.array(OrderSchema),
 })
 
 export const CancelOrderResSchema = OrderSchema

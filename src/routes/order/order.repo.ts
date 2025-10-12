@@ -52,7 +52,7 @@ export class OrderRepo {
   async create(
     userId: number,
     body: CreateOrderBodyType,
-  ): Promise<{ paymentId: number; orders: CreateOrderResType['data'] }> {
+  ): Promise<{ paymentId: number; orders: CreateOrderResType['orders'] }> {
     const allBodyCartItemIds = body.flatMap((b) => b.cartItemIds)
     const cartItems = await this.prismaService.cartItem.findMany({
       where: { id: { in: allBodyCartItemIds }, userId },

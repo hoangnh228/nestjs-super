@@ -5,7 +5,6 @@ import { PaymentProducer } from 'src/routes/payment/payment.producer'
 import { OrderStatus } from 'src/shared/constants/order.constant'
 import { PREFIX_PAYMENT_CODE } from 'src/shared/constants/other.constant'
 import { PaymentStatus } from 'src/shared/constants/payment.constant'
-import { MessageResType } from 'src/shared/models/response.model'
 import { OrderIncludeProductSKUSnapshotType } from 'src/shared/models/shared-order.model'
 import { PrismaService } from 'src/shared/services/prisma.service'
 
@@ -25,7 +24,7 @@ export class PaymentRepo {
     }, 0)
   }
 
-  async receiver(body: WebhookPaymentBodyType): Promise<MessageResType> {
+  async receiver(body: WebhookPaymentBodyType): Promise<number> {
     // 1. add payment transaction to db
     let amountIn = 0
     let amountOut = 0
@@ -40,7 +39,7 @@ export class PaymentRepo {
       throw new BadRequestException('Payment transaction already exists')
     }
 
-    const paymentId = await this.prismaService.$transaction(async (tx) => {
+    const userId = await this.prismaService.$transaction(async (tx) => {
       await tx.paymentTransaction.create({
         data: {
           gateway: body.gateway,
@@ -81,6 +80,7 @@ export class PaymentRepo {
         throw new NotFoundException('Payment not found')
       }
 
+      const userId = payment.orders[0]?.userId
       const { orders } = payment
       const totalPrice = this.getTotalPrice(orders)
 
@@ -102,11 +102,9 @@ export class PaymentRepo {
         this.paymentProducer.removeJob(paymentId),
       ])
 
-      return paymentId
+      return userId
     })
 
-    return {
-      message: `Payment transaction for paymentId: ${paymentId} processed successfully`,
-    }
+    return userId
   }
 }

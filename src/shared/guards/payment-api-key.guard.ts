@@ -8,7 +8,7 @@ export class PaymentApiKeyGuard implements CanActivate {
 
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest()
-    const paymentApiKey = request.headers['payment-api-key']
+    const paymentApiKey = request.headers['authorization']?.split(' ')[1]
     if (paymentApiKey !== env.PAYMENT_API_KEY) {
       throw new UnauthorizedException()
     }
