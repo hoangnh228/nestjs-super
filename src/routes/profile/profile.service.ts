@@ -13,7 +13,6 @@ export class ProfileService {
 
   async getProfile(userId: number) {
     const user = await this.sharedUserRepository.findUniqueWithRoleAndPermissions({ id: userId, deletedAt: null })
-    console.log(user)
     if (!user) {
       throw new NotFoundException('User not found')
     }

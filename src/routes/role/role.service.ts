@@ -1,4 +1,6 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
+import { CACHE_MANAGER } from '@nestjs/cache-manager'
+import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common'
+import type { Cache } from 'cache-manager'
 import { CreateRoleBodyType, GetRolesQueryType, UpdateRoleBodyType } from 'src/routes/role/role.model'
 import { RoleRepo } from 'src/routes/role/role.repo'
 import { ROLES } from 'src/shared/constants/role.constants'
@@ -6,7 +8,10 @@ import { isNotFoundPrismaError, isUniqueConstraintPrismaError } from 'src/shared
 
 @Injectable()
 export class RoleService {
-  constructor(private readonly roleRepo: RoleRepo) {}
+  constructor(
+    private readonly roleRepo: RoleRepo,
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
+  ) {}
 
   async list(pagination: GetRolesQueryType) {
     return await this.roleRepo.list(pagination)
@@ -46,7 +51,9 @@ export class RoleService {
   async update({ id, data, updatedById }: { id: number; data: UpdateRoleBodyType; updatedById: number }) {
     try {
       await this.verifyRole(id)
-      return await this.roleRepo.update({ id, data, updatedById })
+      const updatedRole = await this.roleRepo.update({ id, data, updatedById })
+      await this.cacheManager.del(`role:${id}`)
+      return updatedRole
     } catch (error) {
       if (isNotFoundPrismaError(error)) {
         throw new NotFoundException('Role not found')
@@ -62,6 +69,7 @@ export class RoleService {
     try {
       await this.verifyRole(id)
       await this.roleRepo.delete({ id, deletedById })
+      await this.cacheManager.del(`role:${id}`)
       return { message: 'Role deleted successfully' }
     } catch (error) {
       if (isNotFoundPrismaError(error)) {

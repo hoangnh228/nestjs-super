@@ -33,6 +33,10 @@ import { ThrottlerModule } from '@nestjs/throttler'
 import { ReviewModule } from 'src/routes/review/review.module'
 import { ScheduleModule } from '@nestjs/schedule'
 import { RemoveRefreshTokenCronjob } from 'src/cronjobs/remove-refresh-token.cronjob'
+import { CacheModule } from '@nestjs/cache-manager'
+import KeyvRedis from '@keyv/redis'
+import { LoggerModule } from 'nestjs-pino'
+import pino from 'pino'
 
 @Module({
   imports: [
@@ -55,6 +59,38 @@ import { RemoveRefreshTokenCronjob } from 'src/cronjobs/remove-refresh-token.cro
     PaymentModule,
     WebsocketModule,
     ReviewModule,
+    LoggerModule.forRoot({
+      pinoHttp: {
+        serializers: {
+          req(req: any) {
+            return {
+              method: req.method,
+              url: req.url,
+              query: req.query,
+              params: req.params,
+            }
+          },
+          res(res: any) {
+            return {
+              statusCode: res.statusCode,
+            }
+          },
+        },
+        stream: pino.destination({
+          dest: path.resolve('logs/app.log'),
+          sync: false,
+          mkdir: true,
+        }),
+      },
+    }),
+    CacheModule.registerAsync({
+      isGlobal: true,
+      useFactory: () => {
+        return {
+          stores: [new KeyvRedis(env.REDIS_URL)],
+        }
+      },
+    }),
     ScheduleModule.forRoot(),
     BullModule.forRoot({
       connection: {

@@ -1,4 +1,6 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common'
+import { CACHE_MANAGER } from '@nestjs/cache-manager'
+import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common'
+import type { Cache } from 'cache-manager'
 import {
   CreatePermissionBodyType,
   GetPermissionQueryType,
@@ -9,7 +11,10 @@ import { isNotFoundPrismaError, isUniqueConstraintPrismaError } from 'src/shared
 
 @Injectable()
 export class PermissionService {
-  constructor(private readonly permissionRepo: PermissionRepo) {}
+  constructor(
+    private readonly permissionRepo: PermissionRepo,
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
+  ) {}
 
   async list(pagination: GetPermissionQueryType) {
     return await this.permissionRepo.list(pagination)
@@ -36,7 +41,9 @@ export class PermissionService {
 
   async update({ id, data, updatedById }: { id: number; data: UpdatePermissionBodyType; updatedById: number }) {
     try {
-      return await this.permissionRepo.update({ id, data, updatedById })
+      const permission = await this.permissionRepo.update({ id, data, updatedById })
+      await this.deleteCachedRole(permission.roles)
+      return permission
     } catch (error) {
       if (isNotFoundPrismaError(error)) {
         throw new NotFoundException('Permission not found')
@@ -50,7 +57,8 @@ export class PermissionService {
 
   async delete({ id, deletedById }: { id: number; deletedById: number }) {
     try {
-      await this.permissionRepo.delete({ id, deletedById })
+      const permission = await this.permissionRepo.delete({ id, deletedById })
+      await this.deleteCachedRole(permission.roles)
       return { message: 'Permission deleted successfully' }
     } catch (error) {
       if (isNotFoundPrismaError(error)) {
@@ -58,5 +66,14 @@ export class PermissionService {
       }
       throw error
     }
+  }
+
+  deleteCachedRole(roles: { id: number }[]) {
+    return Promise.all(
+      roles.map((role) => {
+        const cacheKey = `role:${role.id}`
+        return this.cacheManager.del(cacheKey)
+      }),
+    )
   }
 }

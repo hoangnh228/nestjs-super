@@ -4,11 +4,19 @@ import env from './shared/config'
 import { NestExpressApplication } from '@nestjs/platform-express'
 import { WebsocketAdapter } from 'src/websockets/websocket.adapter'
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
+import helmet from 'helmet'
+// import { LoggingInterceptor } from 'src/shared/interceptors/logging.interceptor'
+import { Logger } from 'nestjs-pino'
 // import { UPLOAD_DIR } from 'src/shared/constants/other.constant'
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule)
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bufferLogs: true,
+  })
+  app.useLogger(app.get(Logger))
   app.enableCors()
+  app.use(helmet())
+  // app.useGlobalInterceptors(new LoggingInterceptor())
 
   const config = new DocumentBuilder()
     .setTitle('Title example')

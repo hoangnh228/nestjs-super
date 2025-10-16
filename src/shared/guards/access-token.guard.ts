@@ -1,16 +1,35 @@
-import { Injectable, CanActivate, ExecutionContext, UnauthorizedException, ForbiddenException } from '@nestjs/common'
+import { CACHE_MANAGER } from '@nestjs/cache-manager'
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  UnauthorizedException,
+  ForbiddenException,
+  Inject,
+} from '@nestjs/common'
+import type { Cache } from 'cache-manager'
 import { Request } from 'express'
+import { keyBy } from 'lodash'
 import { REQUEST_ROLE_PERMISSIONS, REQUEST_USER_KEY } from 'src/shared/constants/auth.constant'
-import { HTTP_METHODS, HTTPMethodType } from 'src/shared/constants/role.constants'
+import { HTTP_METHODS } from 'src/shared/constants/role.constants'
+import { RolePermissionsType } from 'src/shared/models/shared-role.model'
 import { PrismaService } from 'src/shared/services/prisma.service'
 import { TokenService } from 'src/shared/services/token.service'
 import { AccessTokenPayload } from 'src/shared/types/jwt.type'
+
+type Permission = RolePermissionsType['permissions'][number]
+type CachedRole = RolePermissionsType & {
+  permissions: {
+    [key: string]: Permission
+  }
+}
 
 @Injectable()
 export class AccessTokenGuard implements CanActivate {
   constructor(
     private readonly tokenService: TokenService,
     private readonly prismaService: PrismaService,
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -45,23 +64,37 @@ export class AccessTokenGuard implements CanActivate {
     const roleId: number = decoded.roleId
     const path: string = request.route.path
     const method = request.method as keyof typeof HTTP_METHODS
-    const role = await this.prismaService.role
-      .findUnique({
-        where: { id: roleId, deletedAt: null },
-        include: { permissions: { where: { deletedAt: null, path, method: method as HTTPMethodType } } },
-      })
-      .catch(() => {
-        throw new ForbiddenException('You are not authorized to access this resource')
-      })
+    const cacheKey = `role:${roleId}`
 
-    const hasPermission = role?.permissions.some(
-      (permission) => permission.path === path && permission.method === method,
-    )
+    let cachedRole = await this.cacheManager.get<CachedRole>(cacheKey)
+    if (!cachedRole) {
+      const role = await this.prismaService.role
+        .findUniqueOrThrow({
+          where: {
+            id: roleId,
+            deletedAt: null,
+          },
+          include: {
+            permissions: {
+              where: {
+                deletedAt: null,
+              },
+            },
+          },
+        })
+        .catch(() => {
+          throw new ForbiddenException('You are not authorized to access this resource')
+        })
 
+      const permissionObject = keyBy(role.permissions, (p) => `${p.path}:${p.method}`) as CachedRole['permissions']
+      cachedRole = { ...role, permissions: permissionObject }
+      await this.cacheManager.set(cacheKey, cachedRole, 1000 * 60 * 60) // cache for 1 hour
+      request[REQUEST_ROLE_PERMISSIONS] = role
+    }
+
+    const hasPermission: Permission | undefined = cachedRole?.permissions[`${path}:${method}`]
     if (!hasPermission) {
       throw new ForbiddenException('You are not authorized to access this resource')
     }
-
-    request[REQUEST_ROLE_PERMISSIONS] = role
   }
 }

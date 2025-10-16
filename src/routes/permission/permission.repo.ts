@@ -46,19 +46,32 @@ export class PermissionRepo {
     updatedById: number
     id: number
     data: UpdatePermissionBodyType
-  }): Promise<PermissionType> {
-    return this.prismaService.permission.update({ where: { id, deletedAt: null }, data: { ...data, updatedById } })
+  }): Promise<PermissionType & { roles: { id: number }[] }> {
+    return this.prismaService.permission.update({
+      where: {
+        id,
+        deletedAt: null,
+      },
+      data: {
+        ...data,
+        updatedById,
+      },
+      include: {
+        roles: true,
+      },
+    })
   }
 
   delete(
     { id, deletedById }: { id: number; deletedById: number; isHard?: boolean },
     isHard?: boolean,
-  ): Promise<PermissionType> {
+  ): Promise<PermissionType & { roles: { id: number }[] }> {
     return isHard
-      ? this.prismaService.permission.delete({ where: { id } })
+      ? this.prismaService.permission.delete({ where: { id }, include: { roles: true } })
       : this.prismaService.permission.update({
           where: { id, deletedAt: null },
           data: { deletedAt: new Date(), deletedById },
+          include: { roles: true },
         })
   }
 }
