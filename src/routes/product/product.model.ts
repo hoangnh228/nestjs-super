@@ -81,7 +81,6 @@ export const GetProductDetailResSchema = ProductSchema.extend({
 })
 
 export const CreateProductBodySchema = ProductSchema.pick({
-  publishedAt: true,
   name: true,
   basePrice: true,
   virtualPrice: true,
@@ -90,6 +89,7 @@ export const CreateProductBodySchema = ProductSchema.pick({
   variants: true,
 })
   .extend({
+    publishedAt: z.string().datetime().nullable().optional(),
     categories: z.array(z.coerce.number().int().positive()),
     skus: z.array(UpsertSKUBodySchema),
   })
